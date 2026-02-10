@@ -3,7 +3,9 @@
 This dbt project transforms raw stock market data into analytics-ready tables following dimensional modeling best practices.
 Live URL - https://opvia-dbt-snowflake-assign.onrender.com/
 Dataset URL - https://finance.yahoo.com/
- https://www.nasdaq.com/market-acƟvity/stocks
+
+
+https://www.nasdaq.com/market-acƟvity/stocks
 
 ## Project Structure
 
