@@ -8,7 +8,8 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 import snowflake.connector
-
+import os
+import snowflake.connector
 # ============================================================================
 # PAGE CONFIG
 # ============================================================================
@@ -57,13 +58,13 @@ st.markdown("---")
 @st.cache_resource
 def get_connection():
     return snowflake.connector.connect(
-        user=st.secrets["snowflake"]["user"],
-        password=st.secrets["snowflake"]["password"],
-        account=st.secrets["snowflake"]["account"],
-        warehouse=st.secrets["snowflake"]["warehouse"],
-        database=st.secrets["snowflake"]["database"],
-        schema=st.secrets["snowflake"]["schema"],
-        role=st.secrets["snowflake"]["role"]
+        user=os.environ["SNOWFLAKE_USER"],
+        password=os.environ["SNOWFLAKE_PASSWORD"],
+        account=os.environ["SNOWFLAKE_ACCOUNT"],
+        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
+        database=os.environ["SNOWFLAKE_DATABASE"],
+        schema=os.environ["SNOWFLAKE_SCHEMA"],
+        role=os.environ["SNOWFLAKE_ROLE"],
     )
 
 @st.cache_data(ttl=300)
@@ -271,3 +272,4 @@ if st.button("Generate Summary"):
 
 st.markdown("---")
 st.caption(f"Updated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Powered by Snowflake + dbt + Streamlit")
+
