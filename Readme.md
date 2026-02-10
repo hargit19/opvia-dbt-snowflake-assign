@@ -1,6 +1,7 @@
 # Stock Analytics dbt Project - Hardik Advani (Assignment X Opvia)
 
 This dbt project transforms raw stock market data into analytics-ready tables following dimensional modeling best practices.
+Live URL - https://opvia-dbt-snowflake-assign.onrender.com/
 
 ## Project Structure
 
