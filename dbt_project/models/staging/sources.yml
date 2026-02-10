@@ -1,0 +1,73 @@
+version: 2
+
+sources:
+  - name: staging
+    description: Staging schema containing cleaned stock data from Snowflake
+    database: STOCK_ANALYTICS
+    schema: staging
+    
+    tables:
+      - name: stock_data_clean
+        description: >
+          Clean, deduplicated stock data loaded from raw scraping.
+          This is the entry point for dbt transformations.
+        
+        columns:
+          - name: stock_key
+            description: Auto-incrementing surrogate key from Snowflake
+            tests:
+              - unique
+              - not_null
+          
+          - name: symbol
+            description: Stock ticker symbol (e.g., AAPL, MSFT)
+            tests:
+              - unique
+              - not_null
+          
+          - name: company_name
+            description: Full legal name of the company
+            tests:
+              - not_null
+          
+          - name: sector
+            description: Industry sector classification
+            tests:
+              - not_null
+              - accepted_values:
+                  values: ['Technology', 'Finance', 'Healthcare', 'Energy', 
+                          'Consumer', 'Industrial', 'Real Estate', 'Utilities', 
+                          'Materials', 'Communications', 'Unknown']
+          
+          - name: country
+            description: Country where company is headquartered
+            tests:
+              - not_null
+          
+          - name: market_cap_usd
+            description: Market capitalization in US dollars
+            tests:
+              - not_null
+          
+          - name: current_price_usd
+            description: Current stock price in US dollars
+            tests:
+              - not_null
+          
+          - name: daily_volume
+            description: Number of shares traded in the day
+          
+          - name: pe_ratio
+            description: Price-to-earnings ratio (can be null for unprofitable companies)
+          
+          - name: market_cap_category
+            description: Small Cap, Mid Cap, or Large Cap classification
+          
+          - name: data_quality_score
+            description: Completeness score from 0.0 to 1.0
+          
+          - name: first_seen_at
+            description: First time this stock was observed in our system
+          
+          - name: last_updated_at
+            description: Most recent observation timestamp
