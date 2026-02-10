@@ -1,0 +1,264 @@
+version: 2
+
+models:
+  # ============================================================================
+  # STAGING MODELS
+  # ============================================================================
+  
+  - name: stg_stocks
+    description: >
+      Staging model that cleans and standardizes raw stock data.
+      This model performs:
+      - Column renaming to follow conventions
+      - Data type standardization
+      - Missing value handling
+      - Invalid data filtering (negative prices, null symbols)
+      - Addition of calculated fields and metadata
+    
+    config:
+      tags: ['staging', 'daily']
+    
+    columns:
+      - name: stock_id
+        description: Surrogate key from source system
+        tests:
+          - unique
+          - not_null
+      
+      - name: stock_symbol
+        description: Stock ticker symbol, serves as natural key
+        tests:
+          - unique
+          - not_null
+      
+      - name: company_name
+        description: Official company name, trimmed and cleaned
+        tests:
+          - not_null
+      
+      - name: sector
+        description: Industry sector classification
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Technology', 'Finance', 'Healthcare', 'Energy', 
+                      'Consumer', 'Industrial', 'Real Estate', 'Utilities', 
+                      'Materials', 'Communications']
+      
+      - name: country
+        description: Country of company headquarters
+        tests:
+          - not_null
+      
+      - name: market_cap_usd
+        description: Total market capitalization in USD
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      
+      - name: stock_price_usd
+        description: Current stock price in USD
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      
+      - name: trading_volume
+        description: Daily trading volume (number of shares)
+        tests:
+          - not_null
+      
+      - name: price_earnings_ratio
+        description: PE ratio, null for unprofitable companies
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "IS NULL OR (price_earnings_ratio >= 0 AND price_earnings_ratio <= 1000)"
+      
+      - name: market_cap_category
+        description: Small Cap (<$2B), Mid Cap ($2B-$10B), or Large Cap (>$10B)
+        tests:
+          - accepted_values:
+              values: ['Small Cap', 'Mid Cap', 'Large Cap', 'Unknown']
+      
+      - name: daily_dollar_volume
+        description: Trading volume multiplied by current price (dollar volume)
+      
+      - name: data_quality_score
+        description: Data completeness score from 0.0 to 1.0
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "BETWEEN 0 AND 1"
+      
+      - name: data_quality_category
+        description: High (>=0.9), Medium (>=0.7), or Low (<0.7)
+        tests:
+          - accepted_values:
+              values: ['High', 'Medium', 'Low']
+      
+      - name: first_observed_date
+        description: First time this stock was seen in our system
+      
+      - name: last_updated_date
+        description: Most recent observation timestamp
+        tests:
+          - not_null
+
+  # ============================================================================
+  # DIMENSION MODELS
+  # ============================================================================
+  
+  - name: dim_company
+    description: >
+      Company dimension table containing one row per unique company.
+      This is a Type 1 slowly changing dimension (SCD) where updates
+      overwrite existing values. Used for dimensional modeling and
+      provides a stable surrogate key for fact table joins.
+    
+    config:
+      tags: ['dimension', 'core']
+    
+    columns:
+      - name: company_key
+        description: Surrogate key for dimensional modeling (MD5 hash of symbol)
+        tests:
+          - unique
+          - not_null
+      
+      - name: stock_symbol
+        description: Natural business key - stock ticker symbol
+        tests:
+          - unique
+          - not_null
+      
+      - name: company_name
+        description: Official company name
+        tests:
+          - not_null
+      
+      - name: sector
+        description: Industry sector classification
+        tests:
+          - not_null
+      
+      - name: country
+        description: Country of company headquarters
+        tests:
+          - not_null
+      
+      - name: market_cap_category
+        description: Market capitalization category for segmentation
+        tests:
+          - accepted_values:
+              values: ['Small Cap', 'Mid Cap', 'Large Cap', 'Unknown']
+      
+      - name: market_cap_usd
+        description: Most recent market capitalization in USD
+      
+      - name: source_url
+        description: URL to the source data page
+      
+      - name: first_observed_date
+        description: First observation date in our system
+      
+      - name: last_updated_date
+        description: Most recent update timestamp
+      
+      - name: is_current
+        description: Flag indicating if this is the current version (always true for Type 1 SCD)
+        tests:
+          - not_null
+
+  # ============================================================================
+  # FACT MODELS
+  # ============================================================================
+  
+  - name: fct_stock_observations
+    description: >
+      Fact table containing time-series observations of stock metrics.
+      Grain: One row per stock symbol per observation date.
+      Contains both additive measures (volume, market cap) and
+      non-additive measures (price, PE ratio).
+      Includes calculated metrics like volume trends and quality flags.
+    
+    config:
+      tags: ['fact', 'core', 'daily']
+    
+    columns:
+      - name: observation_key
+        description: Surrogate key for this observation (hash of symbol + date)
+        tests:
+          - unique
+          - not_null
+      
+      - name: company_key
+        description: Foreign key to dim_company
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_company')
+              field: company_key
+      
+      - name: stock_symbol
+        description: Degenerate dimension - kept in fact for convenience
+        tests:
+          - not_null
+      
+      - name: observation_date
+        description: Date of the observation (without time)
+        tests:
+          - not_null
+      
+      - name: observation_timestamp
+        description: Exact timestamp of the observation
+        tests:
+          - not_null
+      
+      - name: trading_volume
+        description: Number of shares traded (additive measure)
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      
+      - name: daily_dollar_volume
+        description: Dollar value of shares traded (additive measure)
+        tests:
+          - not_null
+      
+      - name: market_cap_usd
+        description: Market capitalization in USD (semi-additive)
+        tests:
+          - not_null
+      
+      - name: stock_price_usd
+        description: Stock price in USD (semi-additive)
+        tests:
+          - not_null
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      
+      - name: price_earnings_ratio
+        description: PE ratio (non-additive measure)
+      
+      - name: price_to_market_cap_ratio
+        description: Price normalized by market cap
+      
+      - name: volume_vs_7day_avg
+        description: Current volume as ratio of 7-day moving average
+      
+      - name: is_high_volume
+        description: Flag for stocks with >1M daily volume
+        tests:
+          - not_null
+      
+      - name: is_healthy_pe
+        description: Flag for PE ratio between 10 and 30
+        tests:
+          - not_null
+      
+      - name: data_quality_score
+        description: Completeness score for this observation
+      
+      - name: data_quality_category
+        description: High, Medium, or Low quality categorization
