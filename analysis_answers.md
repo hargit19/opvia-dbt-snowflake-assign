@@ -536,6 +536,118 @@ ACTION: Rebalance to 35% Tech / 25% Healthcare over next 30 days
    - Link each statistic to source table/query
    - Example: "Avg P/E 28.5 [Source: fct_stock_observations, Query #3]"
 
+---
+
+## B5) n8n Workflow Automation Design
+
+### Workflow: Weekly High-Value Stock Opportunity Scanner
+
+**Trigger Condition:**
+- **Schedule:** Every Monday at 6:00 AM EST (before market open)
+- **Why Monday:** Fresh week, decision makers reviewing opportunities
+- **Why 6 AM:** Complete before 9:30 AM market open
+
+**Workflow Steps:**
+
+```
+1. TRIGGER: Schedule (Weekly, Monday 6:00 AM EST)
+   ↓
+2. EXTRACT: Query Snowflake
+   - Run SQL: Get all stocks from fct_stock_observations (last 7 days)
+   - Filter: data_quality_score > 0.9 AND trading_volume > 500,000
+   ↓
+3. TRANSFORM: Calculate Opportunity Score
+   - Python function node:
+     * Score = (Value Score × 0.4) + (Momentum Score × 0.3) + (Quality Score × 0.3)
+     * Value Score: Based on P/E vs sector average
+     * Momentum Score: Volume trend and price trend
+     * Quality Score: Data quality + healthy P/E range
+   - Output: Top 20 stocks ranked by opportunity score
+   ↓
+4. ENRICH: Add Context
+   - HTTP Request: Fetch latest news headlines for top 20 stocks (Alpha Vantage API)
+   - Merge: Combine stock data + news sentiment
+   ↓
+5. LOGIC: Identify Alerts
+   - IF node: Check for high-priority signals:
+     * New stock entering Top 20 (wasn't there last week) → NEW OPPORTUNITY
+     * Stock dropped >10% but fundamentals strong → BUY THE DIP
+     * Stock P/E dropped below 15 in growth sector → VALUE ALERT
+     * Volume spike >200% of average → UNUSUAL ACTIVITY
+   ↓
+6. FORMAT: Generate Report
+   - Code node: Create HTML email template
+   - Sections:
+     * Executive Summary (3 sentences)
+     * Top 10 Opportunities (table with scores)
+     * New Opportunities This Week (if any)
+     * Alerts (if any)
+     * Full data export (CSV attachment)
+   ↓
+7. OUTPUT: Multi-channel Distribution
+   - Slack: Post to #investment-opportunities channel
+     * Message: "Weekly opportunity scan complete. 3 new alerts 🚨"
+     * Include top 5 stocks inline
+   - Email: Send detailed HTML report to:
+     * CIO
+     * Portfolio Managers (5 recipients)
+     * Senior Analysts (3 recipients)
+   - Notion: Update "Weekly Opportunities" database
+     * Create new page with timestamp
+     * Embed data table
+   ↓
+8. ALERT LOGIC: Conditional Notifications
+   - IF >5 high-priority alerts:
+     * Send SMS to CIO mobile
+     * Create urgent Slack thread with @channel
+   - IF new opportunity score >90:
+     * Create Jira ticket in "Investment Ideas" project
+     * Assign to research analyst
+   ↓
+9. ERROR HANDLING: (See failure section below)
+```
+
+**Alert Logic - What Triggers Notifications:**
+
+| Condition | Severity | Action |
+|-----------|----------|--------|
+| 0 high-priority alerts | None | Standard weekly email only |
+| 1-4 high-priority alerts | Medium | Email + Slack message |
+| 5+ high-priority alerts | High | Email + Slack @channel + SMS to CIO |
+| Opportunity score >90 | Critical | All above + Jira ticket |
+| Score >95 | Urgent | All above + Teams call notification |
+
+**High-Priority Alert Criteria:**
+1. New stock entering Top 20 that wasn't there last week
+2. Value alert: P/E < 15 AND sector average > 20 (>25% discount)
+3. Volume spike: Current volume > 3× 30-day average
+4. Price dip: Stock down >15% week-over-week BUT fundamentals unchanged
+5. Quality upgrade: Data quality score improved from <0.8 to >0.9
+
+**Output Destination:**
+
+1. **Email (Primary)**
+   - To: cio@company.com, portfolio-managers@company.com
+   - Subject: "[Weekly Scan] 3 High-Priority Opportunities - Feb 10, 2026"
+   - Body: HTML formatted with tables, charts embedded as images
+   - Attachment: opportunities_2026-02-10.csv
+
+2. **Slack**
+   - Channel: #investment-opportunities
+   - Format: Card with buttons ("View Full Report", "Add to Watchlist")
+   - Includes: Top 5 stocks inline, alert count
+
+3. **Notion**
+   - Database: "Weekly Investment Scans"
+   - Page title: "2026-02-10 Opportunity Scan"
+   - Content: Embedded table + written summary + linked CSV
+
+4. **Teams (If critical alerts)**
+   - Adaptive card with stock details
+   - Action buttons to approve/reject for deeper research
+
+**Failure Handling and Retry Strategy:**
+
 ```
 ERROR HANDLING FLOW:
 
