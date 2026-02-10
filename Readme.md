@@ -1,4 +1,4 @@
-# Stock Analytics dbt Project
+# Stock Analytics dbt Project - Hardik Advani (Assignment X Opvia)
 
 This dbt project transforms raw stock market data into analytics-ready tables following dimensional modeling best practices.
 
